@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { eventpickup1,eventPickupArrived,eventDropoff,eventDropoffArrive,listSavedBookings,deleteBooking,fetchAndSaveBookings} from "../controllers/driver-events.js";
+import { eventpickup1,eventPickupArrived,eventDropoff,buscarPorKeyRedisRedis
+    ,eventDropoffArrive,listSavedBookings,deleteBooking,fetchAndSaveBookings} from "../controllers/driver-events.js";
 import pkg from 'node-cron';
-
+import {crearEmpresa} from '../controllers/entity-controllers.js';
 const { schedule } = pkg;
 
 const router = Router();
@@ -11,10 +12,22 @@ router.post('/eventpickup2',eventPickupArrived);
 router.post('/eventdropoff1',eventDropoff);
 router.post('/eventdropoff2',eventDropoffArrive);
 router.get('/bookings',listSavedBookings);
+router.get('/buscar/:key',buscarPorKeyRedisRedis);
 router.delete('/bookings/:bookingKey',deleteBooking);
 
-schedule('*/35 * * * *', () => {
-    console.log('llenando redis  cada 35 minutes');
+router.post('/crearEmpresa', async (req, res) => {
+    try {
+      const datosEmpresa = req.body;
+      const resultado = await crearEmpresa(datosEmpresa);
+      res.json({ success: true, resultado });
+    } catch (error) {
+      console.error('Error al crear empresa:', error.message);
+      res.status(500).json({ success: false, message: 'Error al crear empresa' });
+    }
+  });
+
+schedule('*/128 * * * *', () => {
+    console.log('llenando redis  cada 50 minutes');
     fetchAndSaveBookings();
 });
 

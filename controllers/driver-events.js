@@ -3,7 +3,6 @@ import fetch from 'node-fetch';
 import cron from 'node-cron';
 import {pool} from '../db/db.js';
 import {getRedisClient,setValue,getKeys,getValue} from '../db/redis.js'
-import {promisify} from 'util';
 
 
 
@@ -23,9 +22,56 @@ function getCircularReplacer() {
       return value;
     };
   }
+  export async function buscarPorKeyRedisRedis (req, res) {
+    const { key } = req.params;
+    try {
+      const formatvalue = "booking:"+key;
+      const value = await getValue(formatvalue);
+      
+      if (value) {
+        res.json(JSON.parse(value));
+      }
+      else {
+        res.status(404).json({ error: 'Key not found' });
+      }
+    } catch (error) {
+      console.error('Error getting value from Redis:', error);
+      res.status(500).json({ error: 'Error getting value from Redis' });
+    }
+  }
+    
 
   export async function fetchAndSaveBookings() {
-    const url = 'https://dispatch-api-sandbox.qa.someonedrive.me/v1/bookings';
+    const url = 'https://dispatchapi.taxi.booking.com/v1/bookings?status=NEW';
+    const token = await getToken();
+  
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+  
+      const data = await response.json();
+
+      for (const booking of data.bookings) {
+        const bookingKey = `booking:${booking.bookingReference}`;
+        const bookingValue = JSON.stringify(booking, getCircularReplacer());
+        await setValue(bookingKey, bookingValue);
+        console.log(`Saved booking ${booking.bookingReference} to Redis`);
+      }
+    } catch (error) {
+      console.error('Error fetching or saving bookings:', error);
+    }
+  }
+  export async function fetchAndSaveBookingsAR() {
+    const url = 'https://dispatchapi.taxi.booking.com/v1/bookings?status=NEW&pickup.country=AR';
     const token = await getToken();
   
     try {
@@ -43,7 +89,7 @@ function getCircularReplacer() {
   
       const data = await response.json();
       for (const booking of data.bookings) {
-        const bookingKey = `booking:${booking.bookingReference}`;
+        const bookingKey = `bookingAR:${booking.bookingReference}`;
         const bookingValue = JSON.stringify(booking, getCircularReplacer());
         await setValue(bookingKey, bookingValue);
         console.log(`Saved booking ${booking.bookingReference} to Redis`);
@@ -52,25 +98,48 @@ function getCircularReplacer() {
       console.error('Error fetching or saving bookings:', error);
     }
   }
-  export async function listSavedBookings(req,res) {
-    try {
-      const bookingKeys = await getKeys('booking:*');
-      if (bookingKeys.length === 0) {
-       
-        return res.status(404).json({ error: 'No bookings found' });
-      }
-  
-      let bookings = [];
-      for (const key of bookingKeys) {
-        const bookingValue = await getValue(key);
-        bookings.push(JSON.parse(bookingValue)); 
-      }
-      res.json(bookings);
-      console.log(JSON.stringify(bookings, null, 2)); // Imprime el arreglo de reservas como JSON formateado
-    } catch (error) {
-      console.error('Error listing bookings from Redis:', error);
+
+
+  async function clearBookings() {
+    // Opción 1: Eliminar claves específicas una por una
+    const bookingKeys = await getKeys('booking:*');
+    for (const key of bookingKeys) {
+      await deleteBooking(key); 
     }
+  
   }
+
+
+  export async function listSavedBookings(req, res) {
+    const country = req.query.country;
+    try {
+        const bookingKeys = await getKeys('booking:*');
+        if (bookingKeys.length === 0) {
+            return res.status(404).json({ error: 'No bookings found' });
+        }
+
+        let bookings = [];
+        for (const key of bookingKeys) {
+            const bookingValue = await getValue(key);
+            const booking = JSON.parse(bookingValue);
+            // Filtra por país en el campo de recogida
+            if (booking.pickup && booking.pickup.country === country) {
+                bookings.push(booking);
+            }
+        }
+
+        if (bookings.length === 0) {
+            // Si después de filtrar no hay reservas, devuelve un mensaje adecuado
+            return res.status(404).json({ error: 'No bookings found for the specified country' });
+        }
+
+        res.json(bookings);
+        console.log(JSON.stringify(bookings, null, 2)); // Imprime el arreglo de reservas filtradas como JSON formateado
+    } catch (error) {
+        console.error('Error listing bookings from Redis:', error);
+    }
+}
+  
 
   export async function deleteBooking(req, res) {
     const { bookingKey } = req.params; 
@@ -79,7 +148,6 @@ function getCircularReplacer() {
         if (result) {
             return res.status(200).json({ message: 'Booking deleted successfully' });
         } else {
-            // Si deleteKey retorna false o un resultado que indique fallo, manejar como no encontrado o error
             return res.status(404).json({ error: 'Booking not found or could not be deleted' });
         }
     } catch (error) {
@@ -93,7 +161,7 @@ function getCircularReplacer() {
       try {
         const [rows] = await pool.query(`CALL macrologistic.ObtenerAccessToken()`);
         if (rows.length > 0 && rows[0].length > 0) {
-          return rows[0][0].access_token; // Acceso corregido al access_token
+          return rows[0][0].access_token; 
         } else {
           throw new Error('No token found');
         }
@@ -132,6 +200,7 @@ function getCircularReplacer() {
 
   export const eventpickup1 = async (req, res) => {
     const { bookingReference, customerReference,id_reserva } = req.body;
+
     const query = `CALL InsertarReservaDevents(?, 7, 7)`;
     const query1 = `CALL actualizarEstadoDriverReserva(?, 7)`;
 
@@ -165,12 +234,12 @@ function getCircularReplacer() {
         body: JSON.stringify(eventDetails)
       });
   
-      if (!response.ok) {
-        const errorDetails = await response.json();
+      // if (!response.ok) {
+      //   const errorDetails = await response.json();
 
-        console.error('Error details:', errorDetails);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      //   console.error('Error details:', errorDetails);
+      //   throw new Error(`HTTP error! status: ${response.status}`);
+      // }
   
       const data = await response.json();
       console.log('Success:', data);
