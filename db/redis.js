@@ -48,7 +48,24 @@ export async function getKeys(pattern) {
     return keys;
   } catch (error) {
     console.error('Error retrieving keys from Redis:', error);
-    return []; // Return an empty array in case of error
+    return []; 
+  }
+}
+
+export async function deleteValue(key) {
+  try {
+    const client = await getRedisClient();
+    const result = await client.del(key);
+    if (result === 1) {
+      console.log(`Valor ${key} eliminado satisfactoriamente.`);
+      return true; // Indica éxito
+    } else {
+      console.log(`No se encontró el valor ${key} para eliminar.`);
+      return false; // Indica que el valor no existía
+    }
+  } catch (error) {
+    console.error('Error deleting value from Redis:', error);
+    return false; // Indica error
   }
 }
 

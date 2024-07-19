@@ -11,3 +11,5 @@ export const PORT = process.env.PORT ;
 export const JWT_SECRET  =process.env.JWT_SECRET;
 export const BookingKey = process.env.API_KEY_BOOKING;
 export const redis = process.env.URL_REDIS;
+export const client_api = process.env.CLIENT_API;
+export const client_pass = process.env.ClIENT_PASS;

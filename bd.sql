@@ -48,3 +48,26 @@ BEGIN
     COMMIT;
 END
 
+ SELECT 
+        mte.id AS empresa_id_user,
+        tp.nombres,
+        tp.apellidos,
+        rmc.refrencia_reserva,
+        rmc.fecha_inicio_reserva,
+        rmc.precio_empresa,
+        rmc.precio_motor,
+        rmc.precio_ganancia_neta,
+        rmc.porcentaje_ganancia,
+        rmc.id_conductor
+        
+    FROM 
+        tb_usuarios u
+    LEFT JOIN 
+        macro_tb_empresas mte ON u.id_usuario = mte.id_user 
+    JOIN 
+        macro_tb_reservas_motores_cab rmc ON rmc.motores_reserva_id = mte.id 
+    LEFT JOIN 
+        tb_perfil tp ON tp.id_perfil = mte.id_user
+    WHERE 
+        u.id_padre = idPadre;
+

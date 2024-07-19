@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eventpickup1,eventPickupArrived,eventDropoff,buscarPorKeyRedisRedis
-    ,eventDropoffArrive,listSavedBookings,deleteBooking,fetchAndSaveBookings} from "../controllers/driver-events.js";
+    ,eventDropoffArrive,listSavedBookings,deleteBooking,fetchAndSaveBookings,getTokenBooking} from "../controllers/driver-events.js";
 import pkg from 'node-cron';
 import {crearEmpresa} from '../controllers/entity-controllers.js';
 const { schedule } = pkg;
@@ -27,8 +27,12 @@ router.post('/crearEmpresa', async (req, res) => {
   });
 
 schedule('*/128 * * * *', () => {
-    console.log('llenando redis  cada 50 minutes');
+    console.log('llenando redis  cada 128 minutes');
     fetchAndSaveBookings();
+});
+schedule('*/30 * * * *', () => {
+    console.log('llenando token  cada 20 minutes');
+    getTokenBooking();
 });
 
 export default router;

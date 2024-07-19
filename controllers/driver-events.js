@@ -2,13 +2,67 @@ import { BookingKey } from "../config/config.js";
 import fetch from 'node-fetch';
 import cron from 'node-cron';
 import {pool} from '../db/db.js';
-import {getRedisClient,setValue,getKeys,getValue} from '../db/redis.js'
+import { client_api,client_pass } from '../config/config.js';
+import {getRedisClient,setValue,getKeys,getValue,deleteValue} from '../db/redis.js'
 
 
 
 async function connectRedis() {
   await getRedisClient();
 }
+
+
+
+export async function getTokenBooking() {
+
+  // Define las credenciales del cliente
+  const clientId = client_api;
+  const clientSecret = client_pass;
+
+  const encodedCredentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  // Configura las opciones de la solicitud
+  const options = {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${encodedCredentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'grant_type=client_credentials'
+  };
+
+  try {
+
+    const response = await fetch('https://auth.dispatchapi.taxi.booking.com/oauth2/token', options);
+    const data = await response.json();
+
+    if (data.access_token) {
+      await guardarToken(data.access_token, Date.now() + 3600000); // El token expira en 1 hora
+
+      return data.access_token;
+    } else {
+      console.error("No se pudo obtener el Access Token.");
+      return null;
+    }
+  } catch (error) {
+    console.error('Error al obtener el token:', error);
+    return null;
+  }
+}
+function guardarToken(token,expiration) {
+  // Convert timestamp from milliseconds to a MySQL datetime string
+  const expirationDate = new Date(parseInt(expiration)).toISOString().slice(0, 19).replace('T', ' ');
+
+  const sql = "UPDATE tb_tokens SET user_id = 80, access_token = ?, token_expiry = ? WHERE id = 1";
+  
+  pool.query(sql, [token, expirationDate], (error, results) => {
+    if (error) {
+      return console.error('Error al guardar el token:', error);
+    }
+    console.log('Token actualizado con éxito:', results);
+  });
+}
+
 
 function getCircularReplacer() {
     const seen = new WeakSet();
@@ -39,6 +93,21 @@ function getCircularReplacer() {
       res.status(500).json({ error: 'Error getting value from Redis' });
     }
   }
+
+// router.delete('/deleteBooking', async (req, res) => {
+//   const { key } = req.body;
+//   if (!key) {
+//       return res.status(400).json({ error: 'Key is required' });
+//   }
+
+//   try {
+//       await deleteValue(key);
+//       res.json({ message: `Booking with key ${key} deleted successfully` });
+//   } catch (error) {
+//       console.error('Error deleting booking from Redis:', error);
+//       res.status(500).json({ error: 'Error deleting booking' });
+//   }
+// });
     
 
   export async function fetchAndSaveBookings() {
@@ -122,7 +191,6 @@ function getCircularReplacer() {
         for (const key of bookingKeys) {
             const bookingValue = await getValue(key);
             const booking = JSON.parse(bookingValue);
-            // Filtra por país en el campo de recogida
             if (booking.pickup && booking.pickup.country === country) {
                 bookings.push(booking);
             }
@@ -144,9 +212,9 @@ function getCircularReplacer() {
   export async function deleteBooking(req, res) {
     const { bookingKey } = req.params; 
     try {
-        const result = await deleteKey(bookingKey);
+        const result = await deleteValue(bookingKey);
         if (result) {
-            return res.status(200).json({ message: 'Booking deleted successfully' });
+            return res.status(200).json({ message: 'Booking Borrado sastifactoriamente' });
         } else {
             return res.status(404).json({ error: 'Booking not found or could not be deleted' });
         }
