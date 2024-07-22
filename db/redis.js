@@ -4,6 +4,7 @@ import { redis } from '../config/config.js';
 // Initialize the Redis client
 let client = createClient({
   url: redis
+  
 });
 
 // Handle client errors

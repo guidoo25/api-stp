@@ -181,32 +181,32 @@ function getCircularReplacer() {
 
   export async function listSavedBookings(req, res) {
     const country = req.query.country;
+
     try {
         const bookingKeys = await getKeys('booking:*');
         if (bookingKeys.length === 0) {
             return res.status(404).json({ error: 'No bookings found' });
         }
 
-        let bookings = [];
-        for (const key of bookingKeys) {
-            const bookingValue = await getValue(key);
-            const booking = JSON.parse(bookingValue);
-            if (booking.pickup && booking.pickup.country === country) {
-                bookings.push(booking);
-            }
-        }
+        // Obtener todos los valores de manera concurrente
+        const bookingValues = await Promise.all(bookingKeys.map(key => getValue(key)));
+        const bookings = bookingValues
+            .map(value => JSON.parse(value))
+            .filter(booking => booking.pickup && booking.pickup.country === country);
 
         if (bookings.length === 0) {
-            // Si después de filtrar no hay reservas, devuelve un mensaje adecuado
             return res.status(404).json({ error: 'No bookings found for the specified country' });
         }
 
         res.json(bookings);
+        
         console.log(JSON.stringify(bookings, null, 2)); // Imprime el arreglo de reservas filtradas como JSON formateado
     } catch (error) {
         console.error('Error listing bookings from Redis:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 }
+
   
 
   export async function deleteBooking(req, res) {
