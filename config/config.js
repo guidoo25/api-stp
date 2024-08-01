@@ -13,3 +13,5 @@ export const BookingKey = process.env.API_KEY_BOOKING;
 export const redis = process.env.URL_REDIS;
 export const client_api = process.env.CLIENT_API;
 export const client_pass = process.env.ClIENT_PASS;
+export const api_url_booking = process.env.API_URL_BOOKING;
+export const api_url_prueba = process.env.API_URL_PRUEBA;

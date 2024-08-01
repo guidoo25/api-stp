@@ -1,41 +1,19 @@
 
 import {pool} from '../db/db.js';
 
+export async function cambiarPassword(correo, passwordNueva) {
+  const connection = await mysql.createConnection(dbConfig);
 
-export async function crearEmpresa(datosEmpresa) {
-    try {
-      const connection = await pool.getConnection();
-      const result = await connection.query('CALL crear_empresa(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
-        datosEmpresa.txt_empresa,
-        datosEmpresa.txt_usuario,
-        datosEmpresa.txt_correo,
-        datosEmpresa.txt_password,
-        datosEmpresa.txt_nombres,
-        datosEmpresa.txt_apellidos,
-        datosEmpresa.txt_tipo_identificacion,
-        datosEmpresa.txt_documento,
-        datosEmpresa.txt_celular,
-        datosEmpresa.txt_telefono,
-        datosEmpresa.txt_direccion,
-        datosEmpresa.txt_foto,
-        datosEmpresa.txt_sangre,
-        datosEmpresa.txt_genero,
-        datosEmpresa.txt_estado_civil,
-        datosEmpresa.txt_tipo_licencia,
-        datosEmpresa.txt_num_licencia,
-        datosEmpresa.txt_fecha_caducidad_licencia,
-        datosEmpresa.txt_id_padre,
-        datosEmpresa.txt_id_rol,
-        datosEmpresa.txt_id_ubicacion,
-        datosEmpresa.txt_tipo_ubicacion,
-        datosEmpresa.txt_idpais,
-        datosEmpresa.txt_idzona,
-        datosEmpresa.txt_idciudad,
-        datosEmpresa.idMotorBusqueda
-      ]);
-      connection.release();
-      return result[0];
-    } catch (error) {
-      throw error;
-    }
+  try {
+      const encryptedPassword = crypto.AES.encrypt(passwordNueva, "F@R_pa$$").toString();
+      const [rows] = await pool.execute('CALL cambiar_password_conductor(?, ?)', [encryptedPassword, usuario]);
+
+      return rows;
+  } catch (error) {
+      throw new Error('Error al cambiar la contraseña: ' + error.message);
+  } finally {
+      await connection.end();
   }
+}
+
+  

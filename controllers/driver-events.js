@@ -1,11 +1,11 @@
-import { BookingKey } from "../config/config.js";
+import { BookingKey ,api_url_booking,api_url_prueba} from "../config/config.js";
 import fetch from 'node-fetch';
 import cron from 'node-cron';
 import {pool} from '../db/db.js';
 import { client_api,client_pass } from '../config/config.js';
 import {getRedisClient,setValue,getKeys,getValue,deleteValue} from '../db/redis.js'
-
-
+import moment from 'moment'; 
+import {ajustarFechas, convertPickupDateTime} from '../helpers/formater-zone.js'
 
 async function connectRedis() {
   await getRedisClient();
@@ -76,16 +76,20 @@ function getCircularReplacer() {
       return value;
     };
   }
-  export async function buscarPorKeyRedisRedis (req, res) {
+  export async function buscarPorKeyRedisRedis(req, res) {
     const { key } = req.params;
     try {
-      const formatvalue = "booking:"+key;
-      const value = await getValue(formatvalue);
-      
+      const formatvalue = "booking:" + key;
+      let value = await getValue(formatvalue);
+  
+      if (!value) {
+        const acceptedFormatValue = "bookingAceptados:" + key;
+        value = await getValue(acceptedFormatValue);
+      }
+  
       if (value) {
         res.json(JSON.parse(value));
-      }
-      else {
+      } else {
         res.status(404).json({ error: 'Key not found' });
       }
     } catch (error) {
@@ -139,8 +143,9 @@ function getCircularReplacer() {
       console.error('Error fetching or saving bookings:', error);
     }
   }
-  export async function fetchAndSaveBookingsAR() {
-    const url = 'https://dispatchapi.taxi.booking.com/v1/bookings?status=NEW&pickup.country=AR';
+  
+  export async function fetchAndSaveAceptados() {
+    const url = 'https://dispatchapi.taxi.booking.com/v1/bookings?status=ACCEPTED';
     const token = await getToken();
   
     try {
@@ -157,8 +162,9 @@ function getCircularReplacer() {
       }
   
       const data = await response.json();
+
       for (const booking of data.bookings) {
-        const bookingKey = `bookingAR:${booking.bookingReference}`;
+        const bookingKey = `bookingAceptados:${booking.bookingReference}`;
         const bookingValue = JSON.stringify(booking, getCircularReplacer());
         await setValue(bookingKey, bookingValue);
         console.log(`Saved booking ${booking.bookingReference} to Redis`);
@@ -169,18 +175,13 @@ function getCircularReplacer() {
   }
 
 
-  async function clearBookings() {
-    // Opción 1: Eliminar claves específicas una por una
-    const bookingKeys = await getKeys('booking:*');
-    for (const key of bookingKeys) {
-      await deleteBooking(key); 
-    }
-  
-  }
+
 
 
   export async function listSavedBookings(req, res) {
     const country = req.query.country;
+    const vehicleType = req.query.vehicle_type;
+
 
     try {
         const bookingKeys = await getKeys('booking:*');
@@ -188,24 +189,185 @@ function getCircularReplacer() {
             return res.status(404).json({ error: 'No bookings found' });
         }
 
-        // Obtener todos los valores de manera concurrente
         const bookingValues = await Promise.all(bookingKeys.map(key => getValue(key)));
-        const bookings = bookingValues
-            .map(value => JSON.parse(value))
+        let bookings = bookingValues.map(value => JSON.parse(value))
             .filter(booking => booking.pickup && booking.pickup.country === country);
 
-        if (bookings.length === 0) {
-            return res.status(404).json({ error: 'No bookings found for the specified country' });
+        if (vehicleType && vehicleType !== '0') {
+            bookings = bookings.filter(booking => booking.vehicle_type === vehicleType);
         }
 
-        res.json(bookings);
-        
-        console.log(JSON.stringify(bookings, null, 2)); // Imprime el arreglo de reservas filtradas como JSON formateado
+        if (bookings.length === 0) {
+            return res.status(404).json({ error: 'No bookings found for the specified country and vehicle type' });
+        }
+
+        res.json({ bookings });
+
+        console.log(JSON.stringify(bookings, null, 2)); 
     } catch (error) {
         console.error('Error listing bookings from Redis:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+
+
+export async function listSavedBookingszonaHoraria(req, res) {
+  const country = req.query.country;
+  const vehicleType = req.query.vehicle_type;
+
+  try {
+    const bookingKeys = await getKeys('booking:*');
+    if (bookingKeys.length === 0) {
+      return res.status(404).json({ error: 'No bookings found' });
+    }
+
+    const bookingValues = await Promise.all(bookingKeys.map(key => getValue(key)));
+    let bookings = bookingValues.map(value => JSON.parse(value))
+      .filter(booking => booking.pickup && booking.pickup.country === country);
+
+    if (vehicleType && vehicleType !== '0') {
+      bookings = bookings.filter(booking => booking.vehicle_type === vehicleType);
+    }
+
+    if (bookings.length === 0) {
+      return res.status(404).json({ error: 'No bookings found for the specified country and vehicle type' });
+    }
+
+    // Ajustar las fechas y horas según la zona horaria especificada
+    bookings = ajustarFechas(bookings);
+
+    res.json({ bookings });
+
+    console.log(JSON.stringify(bookings, null, 2));
+  } catch (error) {
+    console.error('Error listing bookings from Redis:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function listSavedBookingsAceptado(req, res) {
+  const country = req.query.country;
+  const vehicleType = req.query.vehicle_type;
+
+  try {
+      const bookingKeys = await getKeys('bookingAceptados:*');
+      if (bookingKeys.length === 0) {
+          return res.status(404).json({ error: 'No bookings found' });
+      }
+
+      const bookingValues = await Promise.all(bookingKeys.map(key => getValue(key)));
+      let bookings = bookingValues.map(value => JSON.parse(value))
+          .filter(booking => booking.pickup && booking.pickup.country === country);
+
+      if (vehicleType && vehicleType !== '0') {
+          bookings = bookings.filter(booking => booking.vehicle_type === vehicleType);
+      }
+
+      // Filtro para verificar si el pickup_date_time está dentro de las próximas 20 horas
+      const now = moment();
+      const inTwentyHours = moment().add(20, 'hours');
+      bookings = bookings.filter(booking => {
+          const pickupDateTime = moment(booking.pickup_date_time);
+          return pickupDateTime.isBetween(now, inTwentyHours);
+      });
+
+      if (bookings.length === 0) {
+          return res.status(404).json({ error: 'No bookings found for the specified criteria' });
+      }
+
+      bookings = await ajustarFechas(bookings);
+
+      res.json({ bookings });
+
+      console.log(JSON.stringify(bookings, null, 2));
+  } catch (error) {
+      console.error('Error listing bookings from Redis:', error);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function listSavedBookingsAceptadohoy(req, res) {
+  const country = req.query.country;
+  const vehicleType = req.query.vehicle_type;
+
+  try {
+      const bookingKeys = await getKeys('bookingAceptados:*');
+      if (bookingKeys.length === 0) {
+          return res.status(404).json({ error: 'No bookings found' });
+      }
+
+      const bookingValues = await Promise.all(bookingKeys.map(key => getValue(key)));
+      let bookings = bookingValues.map(value => JSON.parse(value))
+          .filter(booking => booking.pickup && booking.pickup.country === country);
+
+      if (vehicleType && vehicleType !== '0') {
+          bookings = bookings.filter(booking => booking.vehicle_type === vehicleType);
+      }
+
+      // Filtro para verificar si el pickup_date_time es hoy
+      const startOfToday = moment().startOf('day');
+      const endOfToday = moment().endOf('day');
+      bookings = bookings.filter(booking => {
+          const pickupDateTime = moment(booking.pickup_date_time);
+          return pickupDateTime.isBetween(startOfToday, endOfToday);
+      });
+
+      if (bookings.length === 0) {
+          return res.status(404).json({ error: 'No bookings found for the specified criteria' });
+      }
+
+      bookings = await ajustarFechas(bookings);
+
+      res.json({ bookings });
+
+      console.log(JSON.stringify(bookings, null, 2));
+  } catch (error) {
+      console.error('Error listing bookings from Redis:', error);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+
+export async function listSavedBookingsFomater(req, res) {
+  const country = req.query.country;
+  const vehicleType = req.query.vehicle_type;
+
+  try {
+      const bookingKeys = await getKeys('booking:*');
+      if (bookingKeys.length === 0) {
+          return res.status(404).json({ error: 'No bookings found' });
+      }
+
+      const bookingValues = await Promise.all(bookingKeys.map(key => getValue(key)));
+      let bookings = bookingValues.map(value => JSON.parse(value))
+          .filter(booking => booking.pickup && booking.pickup.country === country);
+
+      if (vehicleType && vehicleType !== '0') {
+          bookings = bookings.filter(booking => booking.vehicle_type === vehicleType);
+      }
+
+      // Filtro para verificar si el pickup_date_time es mañana
+      const tomorrow = moment().add(1, 'days').startOf('day');
+      bookings = bookings.filter(booking => {
+          const pickupDateTime = moment(booking.pickup_date_time);
+          return pickupDateTime.isSame(tomorrow, 'day');
+      });
+
+      if (bookings.length === 0) {
+          return res.status(404).json({ error: 'No bookings found for the specified criteria' });
+      }
+      bookings = await  convertPickupDateTime(bookings);
+
+      res.json({ bookings });
+
+      console.log(JSON.stringify(bookings, null, 2));
+  } catch (error) {
+      console.error('Error listing bookings from Redis:', error);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+
 
   
 
@@ -240,7 +402,7 @@ function getCircularReplacer() {
     }
 
   export const getbookings = async (req, res) => {
-   const  url = 'https://dispatch-api-sandbox.qa.someonedrive.me/v1/bookings';
+   const  url = 'https://dispatchapi.taxi.booking.com/v1/bookings';
     const token = await getToken();
     try {
       const response = await fetch(url, {
@@ -267,9 +429,9 @@ function getCircularReplacer() {
   }
 
   export const eventpickup1 = async (req, res) => {
-    const { bookingReference, customerReference,id_reserva } = req.body;
+    const { bookingReference, customerReference,id_reserva ,longitud,latitud} = req.body;
 
-    const query = `CALL InsertarReservaDevents(?, 7, 7)`;
+    const query = `CALL InsertarReservaDevents(?, 7, 7,${longitud},${latitud})`;
     const query1 = `CALL actualizarEstadoDriverReserva(?, 7)`;
 
   
@@ -285,7 +447,7 @@ function getCircularReplacer() {
     };
 
   
-    const url = `https://dispatch-api-sandbox.qa.someonedrive.me/v1/bookings/${customerReference}/${bookingReference}/driver/events`;
+    const url = `https://dispatchapi.taxi.booking.com/v1/bookings/${customerReference}/${bookingReference}/driver/events`;
   
     try {
       const token = await getToken();
@@ -312,7 +474,7 @@ function getCircularReplacer() {
       const data = await response.json();
       console.log('Success:', data);
       await pool.query(query, [id_reserva]);
-      await pool.query(query1, [id_reserva]);
+      //await pool.query(query1, [id_reserva]);
       res.status(200).json(data);
     } catch (error) {
       console.error('Error sending event:', error);
@@ -321,8 +483,8 @@ function getCircularReplacer() {
   };
 
   export const eventPickupArrived = async (req, res) => {
-    const { bookingReference, customerReference,id_reserva } = req.body;
-    const query = `CALL InsertarReservaDevents(?, 8, 8)`;
+    const { bookingReference, customerReference,id_reserva ,longitud,latitud} = req.body;
+    const query = `CALL InsertarReservaDevents(?, 8, 8,${longitud},${latitud})`;
     const query1 = `CALL actualizarEstadoDriverReserva(?, 8)`;
 
   
@@ -336,7 +498,7 @@ function getCircularReplacer() {
       "occurred_at": new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     };
   
-    const url = `https://dispatch-api-sandbox.qa.someonedrive.me/v1/bookings/${customerReference}/${bookingReference}/driver/events`;
+    const url = `https://dispatchapi.taxi.booking.com/v1/bookings/${customerReference}/${bookingReference}/driver/events`;
   
     try {
       const token = await getToken();
@@ -362,7 +524,7 @@ function getCircularReplacer() {
       console.log('Success:', data);
       res.status(200).json(data);
       await pool.query(query, [id_reserva]);
-      await pool.query(query1, [id_reserva]);
+      //await pool.query(query1, [id_reserva]);
 
     } catch (error) {
       console.error('Error sending event:', error);
@@ -371,8 +533,8 @@ function getCircularReplacer() {
   };
 
   export const eventDropoff = async (req, res) => {
-    const { bookingReference, customerReference,id_reserva } = req.body;
-    const query1 = `CALL InsertarReservaDevents(?, 10, 10)`;
+    const { bookingReference, customerReference,id_reserva,longitud,latitud} = req.body;
+    const query1 = `CALL InsertarReservaDevents(?, 10, 10,${longitud},${latitud})`;
     const query = `CALL actualizarEstadoDriverReserva(?, 10)`;
   
     if (!bookingReference || !customerReference) {
@@ -419,8 +581,8 @@ function getCircularReplacer() {
   };
 
   export const eventDropoffArrive = async (req, res) => {
-    const { bookingReference, customerReference ,id_reserva} = req.body;
-    const query = `CALL actualizarEstadoDriverReserva(?, 11)`;
+    const { bookingReference, customerReference ,id_reserva,longitud,latitud} = req.body;
+    const query = `CALL actualizarEstadoDriverReserva(?, 11,${longitud},${latitud})`;
     const query1 = `CALL InsertarReservaDevents(?, 11, 11)`;
     
   
