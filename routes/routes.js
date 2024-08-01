@@ -5,9 +5,11 @@ import { eventpickup1,eventPickupArrived,eventDropoff,buscarPorKeyRedisRedis
     listSavedBookingszonaHoraria,
     fetchAndSaveAceptados,
     listSavedBookingsAceptado,
-    listSavedBookingsAceptadohoy} from "../controllers/driver-events.js";
+    listSavedBookingsAceptadohoy,
+    modifyBooking} from "../controllers/driver-events.js";
 import pkg from 'node-cron';
 import {cambiarPassword} from '../controllers/entity-controllers.js';
+import { flushAll } from "../db/redis.js";
 const { schedule } = pkg;
 
 const router = Router();
@@ -23,40 +25,46 @@ router.get('/listarbookings',listSavedBookingsFomater);
 router.get('/listbookingzone',listSavedBookingszonaHoraria);
 router.get('/aceptados-tomorrow',listSavedBookingsAceptado);
 router.get('/aceptados-hoy',listSavedBookingsAceptadohoy);
-
-router.post('/updateconductor', async (req, res) => {
-  const { urusario, passwordNueva } = req.body;
-
-  try {
-      await cambiarPassword(correo, passwordNueva);
-      const response = {
-          status: true,
-          msg: 'Actualizado Correctamente',
-          title: 'Correcto',
-          icon: 'success'
-      };
-      res.json(response);
-  } catch (error) {
-      const response = {
-          status: false,
-          msg: error.message,
-          title: 'Error',
-          icon: 'error'
-      };
-      res.json(response);
-  }
+router.post('/accion-booking/:bookingkey',modifyBooking);
+// router.post('/updateconductor', async (req, res) => {
+//     const { usuario, passwordNueva } = req.body;
+  
+//     try {
+//       await cambiarPassword(usuario, passwordNueva);
+//       const response = {
+//         status: true,
+//         msg: 'Actualizado Correctamente',
+//         title: 'Correcto',
+//         icon: 'success'
+//       };
+//       res.json(response);
+//     } catch (error) {
+//       const response = {
+//         status: false,
+//         msg: error.message,
+//         title: 'Error',
+//         icon: 'error'
+//       };
+//       res.json(response);
+//     }
+//   });
+schedule('*/128 * * * *', async () => {
+    console.log('llenando redis cada 128 minutos');
+    
+    try {
+        await flushAll();
+        console.log('Redis limpiado');
+        
+        await fetchAndSaveBookings();
+        console.log('Datos de reservas guardados');
+    } catch (error) {
+        console.error('Error durante la ejecución programada:', error);
+    }
 });
-
-
 
 schedule('*/128 * * * *', () => {
-    console.log('llenando redis  cada 128 minutes');
-    fetchAndSaveBookings();
-    //fetchAndSaveBookingsprueba();
-});
-
-schedule('*/80 * * * *', () => {
     console.log('llenando redis aceptados cada 80 minutes');
+  
     fetchAndSaveAceptados();
 });
 schedule('*/30 * * * *', () => {

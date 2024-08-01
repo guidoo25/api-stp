@@ -70,6 +70,17 @@ export async function deleteValue(key) {
   }
 }
 
+export async function flushAll() {
+  try {
+    const client = await getRedisClient();
+    await client.flushAll();
+    console.log('All keys have been deleted from Redis');
+  } catch (error) {
+    console.error('Error flushing all keys from Redis:', error);
+  }
+}
+
+
 export async function disconnectRedisClient() {
   if (client && client.isOpen) {
     await client.disconnect();
