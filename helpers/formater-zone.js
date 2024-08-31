@@ -40,32 +40,3 @@ export function convertPickupDateTime(bookings) {
 
 //prueba
 
-export async function fetchAndSaveBookingsprueba() {
-    const url = "https://dispatch-api-sandbox.qa.someonedrive.me/v1/bookings";
-    const token = "eyJraWQiOiJVRFcwVzJwRUFrNCtxakdhRVUxOFA0ZStjSlNiQjRmQnA2dlJjR2hSUXRnPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiI1aXNjcm5uamNuYXU4c2U1dTY0YmFkZXNjNSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiZGlzcGF0Y2hhcGlzYW5kYm94XC9ib29raW5nczpyZWFkIGRpc3BhdGNoYXBpc2FuZGJveFwvYm9va2luZ3M6d3JpdGUgZGlzcGF0Y2hhcGlzYW5kYm94XC9kcml2ZXJldmVudHM6d3JpdGUiLCJhdXRoX3RpbWUiOjE3MjIyODQwNjksImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC5ldS13ZXN0LTEuYW1hem9uYXdzLmNvbVwvZXUtd2VzdC0xX1VFV2NzaVpQdyIsImV4cCI6MTcyMjI4NzY2OSwiaWF0IjoxNzIyMjg0MDY5LCJ2ZXJzaW9uIjoyLCJqdGkiOiIxNTI3MzVhYS01ZWQ1LTQwMTQtOTczNy04NDg5YmNjZTk2MzIiLCJjbGllbnRfaWQiOiI1aXNjcm5uamNuYXU4c2U1dTY0YmFkZXNjNSJ9.W-uKFD_r6iAPobRv6FXGiU-QfXBizeYcZ55F9OAYNNczjXLY1QV8nJVWnyt9tu0sgXI9ZBik8wTFalwDChdD3FTjQRjDFOctskzsKLl4Mu-IWK6niOIj7TuLVEW-IBiZ7UlRHZ2anWeD7XYys1dwcjikQae3Av2LeGihN1bdwIECHwIPT2Hub3bqW9BnFPBjm3Y6yJc7tKz9tffeD23dd1FQmDFVo1HcIEBm4uqBC4Ha-bRa5hcslyIeBSjMbn5MxBOMZPQRTDrIgpfSiF8ZuduaTIEWJyj5yqARY0Y72Z85Lbb_wBXLux47AkMuMurEIGLb2Q3L0FZEahDwESPNtQ";
-  
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-  
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-  
-      const data = await response.json();
-
-      for (const booking of data.bookings) {
-        const bookingKey = `booking:${booking.bookingReference}`;
-        const bookingValue = JSON.stringify(booking, getCircularReplacer());
-        await setValue(bookingKey, bookingValue);
-        console.log(`Saved booking ${booking.bookingReference} to Redis`);
-      }
-    } catch (error) {
-      console.error('Error fetching or saving bookings:', error);
-    }
-  }
