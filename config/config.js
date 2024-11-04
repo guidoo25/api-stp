@@ -9,3 +9,4 @@ config();
 // export const DB_PORT = process.env.DB_PORT ;
  export const PORT = process.env.PORT ;
  export const SOAP_URL =process.env.SOAP_URL;
+ export const Key_pem = process.env.key_pem;

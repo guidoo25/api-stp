@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
+import { Key_pem } from '../config/config';
 
 export class OrdenPago {
   constructor(data) {
@@ -31,7 +32,7 @@ export class OrdenPago {
     try {
       const keyPath = path.resolve(process.cwd(), 'ssl', 'key.pem');
       const key = await fs.readFile(keyPath, 'utf8');
-      const passphrase = 'admin12345'; 
+      const passphrase = Key_pem; 
 
       const sign = crypto.createSign('RSA-SHA256');
       sign.update(this.generarCadenaOriginal());
