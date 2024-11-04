@@ -1,11 +1,12 @@
 import express from "express";
 import morgan from "morgan";
 import cors from "cors";
-import events from "./routes/routes.js";
-
+import { SoapService } from "./services/soapServices.js";
+import router from "./routes/routes.js";
+import SpeiController from "./controllers/speiController.js";
+import { SOAP_URL } from "./config/config.js";
 const app = express();
 
-// Middlewares
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cors({
@@ -13,10 +14,11 @@ app.use(cors({
   methods: ['GET', 'PUT', 'DELETE', 'PATCH', 'POST'],
   allowedHeaders: 'Content-Type, Authorization, Origin, X-Requested-With, Accept'
 }));
-app.use("/api", events);
 
-// Routes
-//app.use("/", indexRoutes);
+
+
+app.use('/api/spt', router);
+
 
 app.use((req, res, next) => {
   const error = new Error("Not found");
