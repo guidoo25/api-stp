@@ -15,7 +15,8 @@ app.use(cors({
   allowedHeaders: 'Content-Type, Authorization, Origin, X-Requested-With, Accept'
 }));
 
-
+app.use(express.json({ charset: 'utf-8' }));
+app.use(express.urlencoded({ extended: true, charset: 'utf-8' }));
 
 app.use('/api/spt', router);
 

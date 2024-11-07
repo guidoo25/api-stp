@@ -1,41 +1,39 @@
-import { OrdenPago } from '../models/ordenPago.js';
 import { SoapService } from '../services/soapServices.js';
-import axios from 'axios';
-import https from 'https';
+import { SOAP_URL } from '../config/config.js';
+import { OrdenPago } from '../models/ordenPago.js';
 
 export class OrdenController {
   constructor() {
-    this.apiUrl = 'https://demo.stpmex.com:7024/speiws/rest/ordenPago/registra';
+    this.soapService = new SoapService(SOAP_URL);
   }
 
   async registraOrden(req, res) {
     try {
-      const camposObligatorios = [
-        'empresa', 'monto', 'claveRastreo', 'conceptoPago', 'cuentaBeneficiario',
-        'institucionContraparte', 'institucionOperante', 'nombreBeneficiario',
-        'referenciaNumerica', 'tipoCuentaBeneficiario', 'cuentaOrdenante',
-        'rfcCurpBeneficiario', 'tipoPago', 'topologia', 'fechaOperacion'
-      ];
-
-      const camposFaltantes = camposObligatorios.filter(campo => !req.body[campo]);
-
-      if (camposFaltantes.length > 0) {
-        return res.status(400).json({ error: `Campos obligatorios faltantes: ${camposFaltantes.join(', ')}` });
+      const ordenData = req.body;
+      
+      const camposRequeridos = ['monto', 'conceptoPago', 'nombreBeneficiario', 'cuentaBeneficiario', 'institucionContraparte', 'tipoCuentaBeneficiario', 'nombreOrdenante', 'cuentaOrdenante', 'institucionOperante', 'claveRastreo', 'referenciaNumerica'];
+      
+      for (const campo of camposRequeridos) {
+        if (!ordenData[campo]) {
+          return res.status(400).json({ error: `El campo ${campo} es requerido` });
+        }
       }
 
-      const ordenPago = new OrdenPago(req.body);
-      await ordenPago.generarFirma();
+      const orden = new OrdenPago(ordenData);
+      await orden.generarFirma();
 
-      const response = await axios.put(this.apiUrl, ordenPago, {
-        httpsAgent: new https.Agent({  
-          rejectUnauthorized: false
-        })
-      });
+      // Print the data being sent
+      console.log('Datos de la orden:', JSON.stringify(orden, null, 2));
 
-      res.json(response.data);
+      const resultado = await this.soapService.registraOrden(orden);
+
+      // Print the SOAP request
+      console.log('SOAP Request:', this.soapService.lastRequest);
+
+      res.status(200).json(resultado);
     } catch (error) {
       console.error('Error en registraOrden:', error);
-      res.status(500).json({ error: error.response?.data || error.message });
+      res.status(500).json({ error: error.message || 'Error interno del servidor' });
     }
   }
 }
