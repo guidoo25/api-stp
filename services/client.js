@@ -36,29 +36,19 @@ class STPClient {
     return `||${fields.join('|')}||`;
   }
 
-  async registraOrden(ordenData) {
-    const data = {
-      ...ordenData,
-      empresa: this.config.empresa,
-      fechaOperacion: new Date().toISOString().split('T')[0].replace(/-/g, ''),
-    };
-
-    data.firma = await this.generateSignature(data);
+  async registraOrden(orden) {
+    await this.initializeClient();
+    const args = { ordenPago: orden.toSoapFormat().ordenPago };
+    console.log('SOAP request arguments:', JSON.stringify(args, null, 2));
 
     try {
-      const response = await axios.put(
-        `${this.baseURL}/ordenPago/registra`,
-        data,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'stpmex-node/1.0.0',
-          },
-        }
-      );
-      return response.data;
+      const [result] = await this.client.registraOrdenAsync(args);
+      this.lastRequest = this.client.lastRequest;
+      console.log('SOAP request:', this.lastRequest);
+      console.log('SOAP response:', JSON.stringify(result, null, 2));
+      return result;
     } catch (error) {
-      console.error('Error al registrar la orden:', error.response ? error.response.data : error.message);
+      console.error('Error in SOAP request:', error);
       throw error;
     }
   }
