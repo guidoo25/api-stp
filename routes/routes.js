@@ -1,14 +1,15 @@
 import express from 'express';
 import { OrdenController } from '../controllers/ordenController.js';
-import { AbonoController } from '../controllers/abonoController.js';
+import {  TransactionController } from '../controllers/abonoController.js';
 
 const router = express.Router();
 const ordenController = new OrdenController();
-const abonoController = new AbonoController();
+const controller = new TransactionController();
+
 
 
 router.post('/registraOrden', (req, res) => ordenController.registraOrden(req, res));
-router.post('/sendAbono', (req, res) => abonoController.sendAbono(req, res));
+router.post('/transacciones', controller.processTransaction.bind(controller));
 
 
 export default router;

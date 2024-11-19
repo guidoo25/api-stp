@@ -1,35 +1,24 @@
-import { SoapService } from '../services/soapServices.js';
-import { SOAP_URL } from '../config/config.js';
+import { EventType } from '../models/sendPago.js';
+import { TransactionService } from '../services/process_trans.js';
 
-export class AbonoController {
+class TransactionController {
   constructor() {
-    this.soapService = new SoapService(SOAP_URL);
+    this.transactionService = new TransactionService();
   }
 
-  async sendAbono(req, res) {
+  async processTransaction(req, res) {
     try {
-      const abonoData = req.body;
-      
-      // Validate required fields
-      const requiredFields = [
-        'fechaOperacion', 'institucionOrdenante', 'institucionBeneficiaria',
-        'claveRastreo', 'monto', 'nombreOrdenante', 'tipoCuentaOrdenante',
-        'cuentaOrdenante', 'rfcCurpOrdenante', 'nombreBeneficiario',
-        'tipoCuentaBeneficiario', 'cuentaBeneficiario', 'rfcCurpBeneficiario',
-        'conceptoPago', 'referenciaNumerica', 'empresa', 'tipoPago'
-      ];
+      const result = await this.transactionService.processIncomingTransaction(
+        req.body,
+        EventType.Created
+      );
 
-      for (const field of requiredFields) {
-        if (!abonoData[field]) {
-          return res.status(400).json({ error: `El campo ${field} es requerido` });
-        }
-      }
-
-      const result = await this.soapService.sendAbono(abonoData);
       res.status(200).json(result);
     } catch (error) {
-      console.error('Error en sendAbono:', error);
-      res.status(500).json({ error: error.message || 'Error interno del servidor' });
+      console.error('Error processing transaction:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 }
+
+export { TransactionController };

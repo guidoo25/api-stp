@@ -38,17 +38,17 @@ export class SoapService {
 
   async sendAbono(abono) {
     await this.initializeClient();
-    const args = { abono: this.formatAbonoForSoap(abono) };
-    console.log('SOAP sendAbono request arguments:', args);
+    const args = abono.toSoapFormat();
+    console.log('SOAP request arguments:', JSON.stringify(args, null, 2));
 
     try {
       const [result] = await this.client.sendAbonoAsync(args);
       this.lastRequest = this.client.lastRequest;
-      console.log('SOAP sendAbono request:', this.lastRequest);
-      console.log('SOAP sendAbono response:', result);
+      console.log('SOAP request:', this.lastRequest);
+      console.log('SOAP response:', JSON.stringify(result, null, 2));
       return result;
     } catch (error) {
-      console.error('Error in SOAP sendAbono request:', error);
+      console.error('Error in SOAP request:', error);
       throw error;
     }
   }
